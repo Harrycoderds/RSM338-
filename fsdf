@@ -1,0 +1,400 @@
+Authors: Harrison Hong and Eric Zhang
+
+Date: February 17, 2026
+# Problem 1: Exploratory Data Analysis
+
+To understand the relationships among institutional and macroeconomic variables, an exploratory anaylsis is used upon the four indicators: Corruption, peace, legal quality and GDP Growth. The goal of the anaysis is to identify any potential patterns or clusters, and assess if there's any possible correlations among the variables before clustering techniques are applied. The following preperation data codes are used to extract the data from the file "countryriskdata.csv" into a table for graphic representation
+
+### Data preparation for Explatory Data Analysis
+import pandas as pd
+
+# Load the country risk data
+df = pd.read_csv("countryriskdata.csv")
+
+# Inspecting the first few rows (Values were check and nothing is missing)
+df.head()
+# Finding the maximum and minimum values to calculate the range for each feature
+features = ["Corruption", "Peace", "Legal", "GDP Growth"]
+
+scale_table = pd.DataFrame({
+    "min": df[features].min(),
+    "max": df[features].max()
+})
+
+scale_table["range"] = scale_table["max"] - scale_table["min"]
+
+scale_table.sort_values("range", ascending=False)
+#### Summary of statistics
+A summary of statistics were produced to anaylze the numerical magnitude / spread of each variable. From the statistics, range is represented by max value subtracted by min value. From the calcluations, corruption seems to have the biggest range (76) while the smallest range is represented by variable peace (Around 2.21). 
+## Problem 1(a): Scatter Plot Matrix
+#%%
+from pandas.plotting import scatter_matrix
+import matplotlib.pyplot as plt
+
+features = ["Corruption", "Peace", "Legal", "GDP Growth"]
+
+scatter_matrix(df[features], figsize=(10, 10), diagonal="hist")
+plt.suptitle("Scatter Plot Matrix of Country Risk Variables")
+plt.show()
+### Scatter Plot Matrix Analysis
+
+From the scatter plot matrix that was produced to show the relationship between the four risk indicators, several observations were to be made.
+
+First, the relationship between corruption and legal seems to be the only indicators that showcase a strongly correlated relationship, suggesting the possibility of stronger legal systems tend to experiece lower levels of corruption. However, GDP growth's relationship with other variables display a vertically compressed patterns, reflection of how GDP stayed mostly constant and no change occured across these observations (weaker correlation due to points being more scattered).  
+
+Other relationships such as peace & legal or peace & corruption shows moderately strong negative correlations between each other suggesting countries with stronger institutions tend to have lower levels of conflict risk.
+
+In terms of clusters, there no visually defined plots that showcase the pattern, although some grouping patterns are somewhat visible. A few potential outliers can be observed, particularly in GDP growth where some countries display unusally low or high growth rates relative to the rest of the variables. 
+
+OVerall, despite some relationships between variables showcase correlation, the graph representation alone cannot clearly define visible clusters. 
+## Problem 1(b): Correlation Matrix
+# Calculate the correlation matrix for the selected features
+features = ["Corruption", "Peace", "Legal", "GDP Growth"]
+
+corr_matrix = df[features].corr()
+corr_matrix
+### Correlation Matrix: Table Analysis
+
+From the calculated table above, the correlation matrix confirms the observation made based on the graphical representation in Part A. Corruption and legal exhibit the strongest positive, around 0.92, followed up by GDP growth & Legal of 0.12 indicating a very weak positive association between the two variables. The correlation between corruption and legal intuitively makes sense as it aligns with the instrituional theory: countries with stronger legal systems tend to have better enforcement mechanisms, clearer property rights, and stronger rule of law which natrually aligns wtih lower corruption levels.
+
+
+Now, in terms of strong negative correlation, the closest relationship variables are peace & corruption (-0.7) and peace & legal (-0.65). Intuitively, institutional stability often coincides wtih weaker governance structures. Countries experiencing conflicts or political instability may struggle in institutional strength and enforcement capacity, leading to higher corruption and weaker legal framework. 
+
+### Problem 1(c): Why Standardization is Necessary
+
+When extracting the four variables from the CSV file, one noticeable data observation between the variables are that they are all measured on different numerical scales. Corruption ranges from 0 to 100, while Peace ranges approximately from 1 to 5, and Legal ranges from 0 to 10. GDP Growth also has a smaller range compared to Corruption.
+
+K-Means clustering is based on Euclidean distance. If the raw (unstandardized) data were used, features with larger numerical ranges would dominate the distance calculations. In this dataset, Corruption would have the greatest influence because its scale is much larger than the other variables.
+
+As a result, clustering would be driven primarily by differences in Corruption rather than reflecting all four risk indicators equally. Standardizing the features ensures that each variable contributes equally to the clustering process.
+# Problem 2: K-Means Clustering 
+
+With examined relationship and correlation between the pairs of each varaible, K-Means clusttering algorithim is now applied to identify potential groupings of countries based on institutional and macroeconomic indicators. In addition, the data are standarized to ensure equal contribution to the distance calculations 
+### Data preparation for K-Means Clustering
+# Extracting features and defining the target variable
+X = df[['Corruption', 'Peace', 'Legal', 'GDP Growth']]
+X.head()
+# Standardize the features before clustering
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+# Temporary check to see the scaled features
+pd.DataFrame(X_scaled, columns=X.columns).head()
+# Problem 2(a):  Elbow Method 
+# Determine the optimal number of clusters using the Elbow Method
+from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
+
+inertias = []
+K_range = range(1, 11)
+
+for k in K_range:
+    kmeans = KMeans(n_clusters=k, random_state=338)
+    kmeans.fit(X_scaled)
+    inertias.append(kmeans.inertia_)
+
+plt.plot(K_range, inertias, marker="o")
+plt.xlabel("Number of Clusters (K)")
+plt.ylabel("Within-Cluster Sum of Squares (WCSS)")
+plt.title("Elbow Method")
+plt.show()
+### Elbow Method Analysis
+
+When analyzing the graphical repreesentation of the Elbow Method, the WCSS decreases sharply from K = 1 to K = 3, indicating that adding clusters significantly improves model fit in this range. After K = 3, the rate of decrease slows and the curve begins to flatten.
+
+The most visible “elbow” occurs at K = 3, suggesting that three clusters provide a reasonable balance between model complexity and explanatory power. Additional clusters beyond K = 3 yield smaller reductions in WCSS, indicating diminishing returns.
+# Problem 2(b): K-Means Clustering (K = 3)
+
+The following table of cluster centers is reported in standardized units (z-scores). A positive centroid value means the cluster average is above the overall mean for that variable, while a negative value means it is below the mean. Because clustering was done on standardized data, the magnitudes are comparable across variables.
+# Based on the Elbow Method, we can choose K=3 for our final KMeans clustering
+kmeans_final = KMeans(n_clusters=3, random_state=338)
+kmeans_final.fit(X_scaled)
+
+centers = pd.DataFrame( kmeans_final.cluster_centers_, columns=X.columns)
+
+centers
+# Assign cluster labels to the original DataFrame
+df["Cluster"] = kmeans_final.labels_
+
+df[["Country", "Cluster"]].head(122)
+## K-Means Clustering (K = 3): Cluster Interpretation
+### Summary of Clusters 
+- Cluster 1: strongest governance + strongest legal + most stable → lowest risk  
+- Cluster 2: moderate institutions + higher growth → moderate risk / growth tradeoff  
+- Cluster 0: weak institutions + least stable + lowest growth → highest risk
+
+### Variable interpretation 
+- Corruption: higher values indicate *cleaner governance / less corruption risk*.
+- Peace: higher values indicate *higher conflict/instability (less peace)*.
+- Legal: higher values indicate *stronger rule of law and institutions*.
+- GDP Growth: higher values indicate *stronger recent economic growth*.
+
+---
+
+### Cluster 0: High-Risk / Weak Institutions & Low Growth
+**Centroid:** Corruption = -0.976, Peace = +1.221, Legal = -1.021, GDP Growth = -1.622
+
+Overall interpretation:  
+This cluster represents higher-risk countries: weaker governance and institutions, elevated instability, and weaker growth performance. In an investment-risk context, these features typically correspond to higher political/legal risk and greater uncertainty for long-term investment, and may be associated with more volatile outcomes.
+
+
+### Cluster 1: Low-Risk / Strong Institutions & Stable Environment
+Centroid: Corruption = +1.231, Peace = -0.979, Legal = +1.166, GDP Growth = +0.006
+
+Overall interpretation:  
+This cluster represents lower-risk, institutionally strong countries. Strong legal systems and low corruption risk create an environment where economic transactions are more reliable, and lower instability supports long-term planning. In investment terms, this cluster looks like stable, well-governed markets.
+
+
+### Cluster 2: Moderate-Risk / Transitional or Emerging Markets with Better Growth
+Centroid: Corruption = -0.476, Peace = +0.264, Legal = -0.426, GDP Growth = +0.414
+
+**Overall interpretation:**  
+This cluster likely represents emerging or transitional economies where growth prospects are stronger, but governance and legal systems are still developing. From an investment-risk perspective, this group often involves a tradeoff: potentially higher returns due to growth opportunities, but moderate institutional and stability risks.
+
+# Problem 2(c): Listing Countries in each Cluster
+# Group countries by their assigned cluster
+cluster_groups = df.groupby("Cluster")["Country"].apply(list)
+
+# Summary table showing the countries in each cluster and the count of countries per cluster
+cluster_table = pd.DataFrame({
+    "Cluster": ["Cluster 0: High Risk", "Cluster 1: Low Risk", "Cluster 2: Moderate Risk"],
+    "Countries": [
+        ", ".join(cluster_groups[0]),
+        ", ".join(cluster_groups[1]),
+        ", ".join(cluster_groups[2])
+    ],
+    "Count": [len(cluster_groups[0]), len(cluster_groups[1]), len(cluster_groups[2])]
+})
+
+cluster_table
+## Countries in Each Cluster Analysis
+
+### Cluster 0 (High Risk / Fragile States):
+The centroid values for this cluster indicates below average legal quality and peace scores, combined with higher corruption levels and weaker or more volatile economic performance. The following countries that are grouped under this cluster showcase weak insitutational environment and higher eocnomic risk:
+
+**Venezuela**: Venezuela’s placement is intuitive given its prolonged economic contraction, hyperinflation, and institutional breakdown. The country has experienced severe GDP decline and weakening rule of law, which aligns with the cluster’s strongly negative GDP growth and legal indicators. 
+
+**Argentina**: Repeated sovereign debt crises, currency instability, and volatile economic performance. While not a failed state, its macroeconomic instability and weaker institutional reliability make its classification reasonable
+
+**Democratic Republic of Congo**: Faces persistent conflict and weak governance structures. Its low peace and legal scores are consistent with the cluster’s below-average institutional quality
+
+
+### Cluster 1 (Low Risk / Developed economies):
+The centroid values for this cluster shows well aboved legal quality and peace score indicating strong governance structures and insitutional stability. The follow countries grouped under this cluster showcase these characteristics:
+
+**Canada**: Strong rule of law, transparent governance framework, and high institutional stability. Its peaceful political environment and predictable regulatory system align closely with the cluster’s positive legal and peace scores
+
+**Germany**:  Its rule-of-law framework ensures property rights protection and predictable enforcement of commercial agreements. These institutional strengths reduce transaction uncertainty and align with the cluster’s high standardized Legal score. Furthermore, Germany’s stable parliamentary democracy and relatively low corruption levels correspond to the positive Corruption index value observed in the cluster centroid. 
+
+**Japan**: Advanced legal infrastructure, political stability, and mature economy explain its placement. Although GDP growth may not always be high, its institutional stability makes it structurally low-risk.
+
+### Cluster 2 (Emerging / Transitional Economies):
+The centroid for this cluster suggests moderate institutional quality, neither strongly positive nor strongly negative, and mixed economic growth performance. The following countries group under this cluster demonstrates this with their characteristics: 
+
+**Bangladesh**:  The country has experienced strong GDP growth over the past decade but continues to face governance and corruption challenges. This combination of economic momentum with institutional constraints aligns with the cluster’s moderate centroid values.
+
+**Algeria**: While Algeria benefits from natural resource revenues, particularly hydrocarbons, its economic structure is heavily state dependent and vulnerable to commodity price fluctuations. The governance framework is centralized, and legal transparency can be inconsistent. Political reforms have been gradual, and economic diversification remains limited
+
+**Albania**: Undergone institutional reforms and legal modernization efforts. However, corruption concerns and governance capacity constraints persist. Economic growth exists but remains sensitive to external conditions and domestic political developments
+
+# Problem 2(d): Plotting Silhouette Score
+
+To further evaluate the appropriate number of clusters, we compute the silhouette score for K = 2 to K = 10. The silhouette score measures how well each observation fits within its assigned cluster compared to other clusters. A negative value suggests potential misclassification, a value of zero indicates overlapping clusters while a value close to 1 indicate that overservations are matched to their own cluster and are clearly seperated. 
+from sklearn.metrics import silhouette_score
+
+# Calculate silhouette scores for K=2 to K=10
+sil_scores = []
+K_range = range(2, 11)
+
+for k in K_range:
+    kmeans = KMeans(n_clusters=k, random_state=338)
+    labels = kmeans.fit_predict(X_scaled)
+    score = silhouette_score(X_scaled, labels)
+    sil_scores.append(score)
+
+plt.plot(K_range, sil_scores, marker="o")
+plt.xlabel("Number of Clusters (K)")
+plt.ylabel("Silhouette Score")
+plt.title("Silhouette Analysis")
+plt.show()
+### Silhouette Analysis
+
+After computing the silhouette scores for different values of K, we observe that the highest score occurs at K = 2 (approximately 0.42). 
+The score declines for K = 3 (around 0.40) and drops more sharply for K ≥ 4, stabilizing at lower values thereafter. According to silhouette analysis, the optimal number of clusters is K = 2 as it maximizes cluster seperation and cohesion. HOWEVER, this is different when compared to the Elbow method as it suggested K = 3 despite the differences of 0.2, causing both method to disagree with each other. 
+
+In this context of comparison, both methods give a different representation. In the silhouette method, it focuses on two qualities, cohesion and seperation. These two qualities help identifiy where or not a point is closer to its own cluster than the nearest other cluster. When the data showcase K = 2, it gave a clean split, demonstrating that the data has a very song "two-group" structure, and when K is forced to equal to 3, one of these two distinct groups are splited into two subgroups resulting in silhouette to drop and a reason to choose an extra cluster just because it's "possible". Despite silhouette seems better, Elbow is recommended instead since the anaylsis of data is not only just about statistics but rather more for an interpretation of listed countries. When K = 2, silhouette may overly simplified solutions where in a low/medium/high risk structure, it might lump both medium and high risk together which may lead to bad decision making when it comes to politics. In addition to this, the marginal difference in terms of cluster quality is quite small, resulting them to be both statistically reasonable where there's not really a strong solution to pick one over the other. 
+# Problem 3: Hierarchical Clustering 
+
+To further validate the clustering structure identified using K-Means, hierarchical clustering is applied to the same standardized dataset. Unlike K-Means, which requires the number of clusters to be specified in advance, hierarchical clustering builds a full merge history of the data. This allows us to visually examine the natural grouping structure through a dendrogram and assess whether the number of clusters chosen in Problem 2 is supported by an alternative clustering method.
+from scipy.cluster.hierarchy import linkage, dendrogram
+
+# Perform hierarchical clustering using Ward's linkage
+Z = linkage(X_scaled, method='ward')
+
+# Visualize the dendrogram
+plt.figure(figsize=(12, 6))
+dendrogram(Z)
+plt.title("Hierarchical Clustering Dendrogram (Ward's Method)")
+plt.xlabel("Observations")
+plt.ylabel("Distance")
+plt.show()
+## Hierarchical Clustering: Diagram Analysis
+
+### Cut Height for K = 3 Clusters
+
+When analyzing the produced graphical representation, the dendrogram visualizes the sequence of merges between observations. The vertical axis represents the linkage distance at which clusters are merged. Cutting the dendrogram at a particular height corresponds to selecting a level of dissimilarity beyond which clusters are no longer merged.
+
+To obtain the same number of clusters as the K-Means solution (K = 3), we draw a horizontal line across the dendrogram and identify the height at which exactly three distinct branches remain. Visually, cutting the tree at approximately height 12 produces three well-separated clusters.
+
+### Large Gaps Interpretation 
+
+A large gap in the dendrogram means how big of a jump in merge height betwween two consecutive merges where small gaps represents clusters are being merged fairly similar while big gaps represents how algorithim forces the clusters to merge despite them being less similar. When analyzing the graph, there are 2 identifiable gaps, one at the very top of the dendrogram, a jump from 12 to 20, and a secondary gap from 5 to 12. In the first gap, the final merge happens around distance 20, where two large distinct groups are combined into one cluster that resulted a very large increase in dissimilarity indicated by the difference of 8 in terms of distance.  The second gap happens when branch merges around distance 10. Despite the gap distance is smaller compared to the first gap, its internally cohesive characteristics is not enough to determine that the clusters are very similar. Instead, it indicates that the clusters can be divded further into three clusters that preserves more detailed structural infromation in the data. 
+
+# Problem 3(b): Cutting Dendogram
+from scipy.cluster.hierarchy import fcluster
+
+h_labels = fcluster(Z, 3, criterion='maxclust')
+# Store Cluster Labels in Dataframe
+df['KMeans'] = kmeans_final.labels_
+df['Hierarchical'] = h_labels
+# Cross Tabulation 
+pd.crosstab(df['KMeans'], df['Hierarchical'])
+# Aligning Cluster Labels
+mapping = {1:1, 2:2, 3:0}
+df['H_matched'] = df['Hierarchical'].map(mapping)
+
+# Commute Aggreement
+same = (df['KMeans'] == df['H_matched']).sum()
+total = len(df)
+different = total - same
+
+print(f"Same cluster: {same} ({same/total:.2%})")
+print(f"Different cluster: {different} ({different/total:.2%})")
+
+df[df['KMeans'] != df['Hierarchical']][['Country','KMeans','Hierarchical']]
+## Comparing Cluster Assignments
+
+Using three clusters in both K-Means and hierarchical clustering, we compared the cluster assignments using a cross-tabulation.
+
+The results show that 39 countries are assigned to the same cluster by both methods.
+
+Two of the clusters show very strong agreement between K-Means and hierarchical clustering. However, one cluster is split across multiple hierarchical clusters, indicating some differences in how borderline countries are grouped.
+
+This difference is expected because:
+
+- K-Means minimizes within-cluster variance using centroids.
+- Hierarchical clustering (Ward’s method) merges observations step-by-step based on distance.
+
+Countries that lie near cluster boundaries may therefore be assigned differently depending on the clustering approach.
+
+Overall, the clustering structure is broadly consistent across both methods.
+## Problem 3(c): Comparing K-Means and Hierarchical Clustering
+
+K-Means and hierarchical clustering are both distance-based clustering methods, but they differ in how clusters are formed.
+
+### K-Means
+
+- Requires specifying the number of clusters (K) in advance.
+- Optimizes cluster centers (centroids) to minimize within-cluster variance.
+- Computationally efficient and works well for larger datasets.
+- Sensitive to initial starting values and outliers.
+- Produces compact, spherical clusters.
+
+### Hierarchical Clustering (Ward's Method)
+
+- Does not require pre-specifying the number of clusters.
+- Produces a dendrogram that shows the full merging history.
+- More computationally intensive for large datasets.
+- Once clusters are merged, the decision cannot be reversed.
+- Provides a visual tool (dendrogram) to identify natural grouping structures.
+
+### When to Prefer Each Method
+
+- K-Means is preferred when the dataset is large and a clear number of clusters is known or estimated.
+- Hierarchical clustering is useful when exploring the data structure and identifying a natural number of clusters.
+
+In this analysis, both methods produced broadly consistent groupings, suggesting that the cluster structure in the data is reasonably stable.
+## Problem 4(a): Risk Ranking of Clusters
+Cluster Centers (standardized units):
+
+Cluster 0:
+- Corruption: -0.976  
+- Peace: 1.221
+- Legal: -1.021
+- GDP Growth: -1.622
+
+Cluster 1:
+- Corruption: 1.231
+- Peace: -0.9792
+- Legal: 1.166
+- GDP Growth: 0.006
+
+Cluster 2:
+- Corruption: -0.476
+- Peace: 0.264
+- Legal: -0.426
+- GDP Growth: 0.414
+
+### Ranking (Lowest to Highest Risk)
+
+1. **Cluster 1 (Lowest Risk)**  
+   - Very strong legal institutions (+1.17 standard deviations higher than average)
+   - Most peaceful (-0.979 std deviations lower than mean; indicates more peacefulness)
+   - Low corruption (+1.23 std deviations higher than average; cleaner governments)
+   - Moderate GDP growth (+0.006 std deviations from mean; close to mean/average)
+   - Overall strongest institutional profile across the different dimensions
+
+Cluster 1 consists of developed countries, exhibiting the overall strongest institutional quality with very strong legal insitutions (-1.17), cleaner governments due to low corruption rates (+1.23), more peace and stability (-0.979; less than mean/closer to 1 = more peaceful), and average GDP growth, roughly clustering around mean (+0.006; marginally higher than average). Since this cluster performs above average on all four observed metrics, it represents that institutions here are the safest offshore investments for our firm.
+
+2. **Cluster 2 (Medium Risk)**  
+   - Moderately weak legal institutions (-0.426 std deviations lower than mean)
+   - Moderately lower peace (+0.264 std deviations higher than mean; indicates lower peacefulness than average)
+   - Moderately high corruption prevalence (-0.476 std deviations higher than mean)
+   - Strongest relative GDP growth (+0.414 std deviations higher than mean)
+   - Moderately strong emerging market country with weaker-than-average metrics across the different dimensions except for GDP growth
+
+Cluster 2 exhibits characteristics of emerging markets/economies, experiencing strong GDP growth and rapid development due to a strong emphasis on infrastructure development, domestic and foreign investments, and positive trade policies. Countries here have moderately weak legal institutions (-0.426), moderately lower peace(+0.264), and moderately high corruption (+0.476). Despite weaker than average metrics, this cluster experiences strong GDP growth (+0.414), representing a higher risk-return tradeoff for investors with greater uncertainty and geopolitical risk, but compensating with higher potential returns and growth opportunities compared to mature markets.
+
+3. **Cluster 0 (Highest Risk)**  
+   - Very weak legal institutions (-1.021 std deviations)
+   - Least peaceful (+1.221 std deviations)
+   - Highly corrupt and unclean governments (-0.976 std deviations)
+   - GDP/economic regression (negative growth; -1.622 std deviations)
+   - Highly geopolitically and economically unstable
+
+Cluster 3 respresents underdeveloped countries which experience a very weak rule of law (-1.021), are the least peaceful and most prone to violence and conflict (+1.221), have highly corrupt governments (-0.976), and experience economic regression (-1.622). Since countries here face persistent conflict, political instability and corruption, and oftentimes lack the infrastructure and basic necessities for life, they often are very difficult to develop in the status quo. Consequently, this is the highest-risk cluster for investors who may likely incur losses on investments and face the highest amount of uncertainty. Despite this, countries here may provide niche investment opportunities (i.e. natural materials extraction unable to be found elsewhere, or at a low cost).
+
+Overall, Cluster 1 appears most stable for investors, while Cluster 0 represents the highest risk.
+## Problem 4(b): Investment Implications
+
+If advising an institutional investor seeking to diversify an emerging markets portfolio, the clustering results provide a structured way to group countries by institutional and macroeconomic risk characteristics.
+
+### How Investors Could Use the Clusters
+
+1. **Allocation Decisions:** Institutional investors can use this data to strategically allocate assets, having an overweight position in cluster 1 (lowest risk) for capital preservation, a moderate allocation to cluster 2 for higher growth (+ higher risk exposure), and limit their exposure in cluster 0 (unless there is an incentive / compensation from high expected returns or specific industries). This allows clustering to act as a risk budgeting framework by a group of countries.
+
+2. **Diversify Across Regimes:** Since countries in the same cluster share structural similarities (like political sensitivity, governance, growth dynamics, etc.), holding countries from different clusters can allow for diverse exposure and risk hedging.
+
+3. **Monitor Cluster Risk**: Cluster data can be used to monitor if a country's characteristics begin straying towards a different cluster (i.e. rising corruption, falling peace, weakening growth), and signal to portfolio managers to reduce allocation or hedge their exposures.
+
+4. **Portfolio Construction by Strategy/Firm Type**: Portfolio's exposures to clusters can be based on a firm's strategy type. Long-only firms can invest in a mix of cluster 1 (stable growth, reliable institutions) and cluster 2 (high growth, high risk). Distressed debt firms can invest in cluster 0 countries where firms may face high bankruptcy risk, operational issues, or liquidity problems, where they are able to restructure companies. Firms that invest in infrastructure (e.g. Brookfield) can invest in cluster 2 countries that have high growth and rising demand for roads, networks, energy systems, etc.
+---
+
+### Limitations of Using Only These Four Indicators
+
+1. **Limited Variable Scope:** While the four indicators provide a useful structural classification of institutional quality and economic growth conditions, their explanatory power is limited by their narrow variable scope, as they exclude important macroeconomic and financial dimensions such as inflation dynamics (increases asset volatility), debt levels (increases default probability), and market liquidity (difficulty to exit during crises), all of which affect investment risk, return volatility, and portfolio diversification.
+
+2. **Assumes Equal Weight:** All indicators are weighed equally even though in reality investors may care about certain indicators more than others, i.e. care more about political stability over growth, peace over enforcement of rule of law. 
+
+3. **Historical-Looking:** Since the indicators are based on historical/lagged data, they may not reflect future / forward-looking expectations that drive current investment decisions (i.e. data may already be priced in).
+
+4. **Heterogeneity Bias**: Countries grouped within the same cluster may still differ on fundamental levels depending on economic structure and risk exposure. This reduces the accuracy and precision of different cluster classifications.
+
+---
+
+### Conclusion
+
+In conclusion, we identified 3 distinct country risk categories based on corruption, peace, legal instituions, and GDP growth across 122 different countries. While clustering based on institution quality and growth provides a useful framework for classifying countries for investment purposes, it offers only a partial view of investment risk. Since it omits market-based variables, forward-looking expectations, and different macroeconomic factors, clustering should be used as a complementary tool within a broader portfolio construction and risk management process rather than as a standalone decision framework.
+
+### AI Use Disclosure
+
